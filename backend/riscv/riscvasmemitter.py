@@ -90,9 +90,10 @@ class RiscvAsmEmitter(AsmEmitter):
                 self.seq.append(Riscv.Binary(BinaryOp.SUB, instr.dst, instr.lhs, instr.rhs))
                 self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.dst, instr.dst))
             elif instr.op == BinaryOp.AND:
-                self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.lhs, instr.lhs))
-                self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.rhs, instr.rhs))
-                self.seq.append(Riscv.Binary(instr.op, instr.dst, instr.lhs, instr.rhs))
+                self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.dst, instr.lhs))
+                self.seq.append(Riscv.Unary(UnaryOp.NEG, instr.dst, instr.dst))
+                self.seq.append(Riscv.Binary(instr.op, instr.dst, instr.dst, instr.rhs))
+                self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.dst, instr.dst))
             elif instr.op == BinaryOp.OR:
                 self.seq.append(Riscv.Binary(instr.op, instr.dst, instr.lhs, instr.rhs))
                 self.seq.append(Riscv.Unary(UnaryOp.SNEZ, instr.dst, instr.dst))
