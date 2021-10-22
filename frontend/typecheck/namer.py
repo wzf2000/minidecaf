@@ -43,9 +43,10 @@ class Namer(Visitor[ScopeStack, None]):
         func.body.accept(self, ctx)
 
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
+        ctx.open(Scope(ScopeKind.LOCAL))
         for child in block:
             child.accept(self, ctx)
-
+        ctx.close()
     def visitReturn(self, stmt: Return, ctx: ScopeStack) -> None:
         stmt.expr.accept(self, ctx)
 
@@ -100,11 +101,11 @@ class Namer(Visitor[ScopeStack, None]):
         """
         symbol = ctx.findConflict(decl.ident.value)
         if symbol == None:
+            if decl.init_expr != NULL:
+                decl.init_expr.accept(self, ctx)
             varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
             ctx.declare(varSymbol)
             decl.setattr('symbol', varSymbol)
-            if decl.init_expr != NULL:
-                decl.init_expr.accept(self, ctx)
         else:
             raise DecafDeclConflictError(decl.ident.value)
 
