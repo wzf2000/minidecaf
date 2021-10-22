@@ -62,7 +62,7 @@ class TACGen(Visitor[FuncVisitor, None]):
         decl.ident.setattr('symbol', symbol)
         if decl.init_expr != NULL:
             decl.init_expr.accept(self, mv)
-            mv.visitAssignment(symbol.temp, decl.init_expr.getattr('val'))
+            mv.visitAssignment(symbol.temp, decl.init_expr.getattr("val"))
 
     def visitAssignment(self, expr: Assignment, mv: FuncVisitor) -> None:
         """
@@ -72,8 +72,8 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         expr.rhs.accept(self, mv)
         expr.lhs.accept(self, mv)
-        temp = expr.lhs.getattr('val')
-        expr.setattr('val', mv.visitAssignment(temp, expr.rhs.getattr('val')))
+        temp = expr.lhs.getattr("val")
+        expr.setattr("val", mv.visitAssignment(temp, expr.rhs.getattr("val")))
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)
@@ -152,7 +152,19 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Refer to the implementation of visitIf and visitBinary.
         """
-        pass
+        expr.cond.accept(self, mv)
+        skipLabel = mv.freshLabel()
+        exitLabel = mv.freshLabel()
+        mv.visitCondBranch(
+            tacop.CondBranchOp.BEQ, expr.cond.getattr("val"), skipLabel
+        )
+        expr.then.accept(self, mv)
+        mv.visitBranch(exitLabel)
+        mv.visitLabel(skipLabel)
+        expr.otherwise.accept(self, mv)
+        mv.visitAssignment(expr.then.getattr("val"), expr.otherwise.getattr("val"))
+        mv.visitLabel(exitLabel)
+        expr.setattr("val", expr.then.getattr("val"))
 
     def visitIntLiteral(self, expr: IntLiteral, mv: FuncVisitor) -> None:
         expr.setattr("val", mv.visitLoad(expr.value))
