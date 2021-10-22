@@ -92,7 +92,7 @@ class Unary(TACInstr):
     def __str__(self) -> str:
         return "%s = %s %s" % (
             self.dst,
-            ("-" if (self.op == UnaryOp.NEG) else "!"),
+            ("-" if (self.op == UnaryOp.NEG) else "!" if (self.op == UnaryOp.NOT) else "SNEZ" if (self.OP == UnaryOp.SNEZ) else "SEQZ"),
             self.operand,
         )
 
