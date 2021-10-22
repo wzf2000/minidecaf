@@ -1,3 +1,4 @@
+from frontend.parser.ply_parser import unary
 import utils.riscv as riscv
 from frontend.ast import node
 from frontend.ast.tree import *
@@ -44,11 +45,14 @@ class TACGen(Visitor[FuncVisitor, None]):
     def visitBreak(self, stmt: Break, mv: FuncVisitor) -> None:
         mv.visitBranch(mv.getBreakLabel())
 
+    def visitContinue(self, stmt: Continue, mv: FuncVisitor) -> None:
+        mv.visitBranch(mv.getContinueLabel())
+
     def visitIdentifier(self, ident: Identifier, mv: FuncVisitor) -> None:
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
         """
-        pass
+        ident.setattr('val', ident.getattr('symbol').temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
@@ -56,7 +60,12 @@ class TACGen(Visitor[FuncVisitor, None]):
         2. Use mv.freshTemp to get a new temp variable for this symbol.
         3. If the declaration has an initial value, use mv.visitAssignment to set it.
         """
-        pass
+        symbol = decl.getattr('symbol')
+        symbol.temp = mv.freshTemp()
+        decl.ident.setattr('symbol', symbol)
+        if decl.init_expr != NULL:
+            decl.init_expr.accept(self, mv)
+            mv.visitAssignment(symbol.temp, decl.init_expr.getattr("val"))
 
     def visitAssignment(self, expr: Assignment, mv: FuncVisitor) -> None:
         """
@@ -64,7 +73,10 @@ class TACGen(Visitor[FuncVisitor, None]):
         2. Use mv.visitAssignment to emit an assignment instruction.
         3. Set the 'val' attribute of expr as the value of assignment instruction.
         """
-        pass
+        expr.rhs.accept(self, mv)
+        expr.lhs.accept(self, mv)
+        temp = expr.lhs.getattr("val")
+        expr.setattr("val", mv.visitAssignment(temp, expr.rhs.getattr("val")))
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)
@@ -88,6 +100,27 @@ class TACGen(Visitor[FuncVisitor, None]):
             stmt.otherwise.accept(self, mv)
             mv.visitLabel(exitLabel)
 
+    def visitFor(self, stmt: For, mv: FuncVisitor) -> None:
+        stmt.init.accept(self, mv)
+
+        beginLabel = mv.freshLabel()
+        loopLabel = mv.freshLabel()
+        breakLabel = mv.freshLabel()
+        mv.openLoop(breakLabel, loopLabel)
+
+        mv.visitLabel(beginLabel)
+        if not isinstance(stmt.cond, node.NullType):
+            stmt.cond.accept(self, mv)
+            mv.visitCondBranch(tacop.CondBranchOp.BEQ, stmt.cond.getattr("val"), breakLabel)
+
+        stmt.body.accept(self, mv)
+        mv.visitLabel(loopLabel)
+        stmt.update.accept(self, mv)
+
+        mv.visitBranch(beginLabel)
+        mv.visitLabel(breakLabel)
+        mv.closeLoop()
+
     def visitWhile(self, stmt: While, mv: FuncVisitor) -> None:
         beginLabel = mv.freshLabel()
         loopLabel = mv.freshLabel()
@@ -104,11 +137,29 @@ class TACGen(Visitor[FuncVisitor, None]):
         mv.visitLabel(breakLabel)
         mv.closeLoop()
 
+    def visitDoWhile(self, stmt: DoWhile, mv: FuncVisitor) -> None:
+        beginLabel = mv.freshLabel()
+        loopLabel = mv.freshLabel()
+        breakLabel = mv.freshLabel()
+        mv.openLoop(breakLabel, loopLabel)
+
+        mv.visitLabel(beginLabel)
+        stmt.body.accept(self, mv)
+
+        mv.visitLabel(loopLabel)
+        stmt.cond.accept(self, mv)
+        mv.visitCondBranch(tacop.CondBranchOp.BEQ, stmt.cond.getattr("val"), breakLabel)
+        mv.visitBranch(beginLabel)
+        mv.visitLabel(breakLabel)
+        mv.closeLoop()
+
     def visitUnary(self, expr: Unary, mv: FuncVisitor) -> None:
         expr.operand.accept(self, mv)
 
         op = {
             node.UnaryOp.Neg: tacop.UnaryOp.NEG,
+            node.UnaryOp.BitNot: tacop.UnaryOp.NOT,
+            node.UnaryOp.LogicNot: tacop.UnaryOp.SEQZ,
             # You can add unary operations here.
         }[expr.op]
         expr.setattr("val", mv.visitUnary(op, expr.operand.getattr("val")))
@@ -119,6 +170,18 @@ class TACGen(Visitor[FuncVisitor, None]):
 
         op = {
             node.BinaryOp.Add: tacop.BinaryOp.ADD,
+            node.BinaryOp.Sub: tacop.BinaryOp.SUB,
+            node.BinaryOp.Mul: tacop.BinaryOp.MUL,
+            node.BinaryOp.Div: tacop.BinaryOp.DIV,
+            node.BinaryOp.Mod: tacop.BinaryOp.REM,
+            node.BinaryOp.LT:  tacop.BinaryOp.SLT,
+            node.BinaryOp.GT:  tacop.BinaryOp.SGT,
+            node.BinaryOp.LogicAnd: tacop.BinaryOp.AND,
+            node.BinaryOp.LogicOr:  tacop.BinaryOp.OR,
+            node.BinaryOp.LE:  tacop.BinaryOp.LEQ,
+            node.BinaryOp.GE:  tacop.BinaryOp.GEQ,
+            node.BinaryOp.EQ:  tacop.BinaryOp.EQU,
+            node.BinaryOp.NE:  tacop.BinaryOp.NEQ,
             # You can add binary operations here.
         }[expr.op]
         expr.setattr(
@@ -129,7 +192,19 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Refer to the implementation of visitIf and visitBinary.
         """
-        pass
+        expr.cond.accept(self, mv)
+        skipLabel = mv.freshLabel()
+        exitLabel = mv.freshLabel()
+        mv.visitCondBranch(
+            tacop.CondBranchOp.BEQ, expr.cond.getattr("val"), skipLabel
+        )
+        expr.then.accept(self, mv)
+        mv.visitBranch(exitLabel)
+        mv.visitLabel(skipLabel)
+        expr.otherwise.accept(self, mv)
+        mv.visitAssignment(expr.then.getattr("val"), expr.otherwise.getattr("val"))
+        mv.visitLabel(exitLabel)
+        expr.setattr("val", expr.then.getattr("val"))
 
     def visitIntLiteral(self, expr: IntLiteral, mv: FuncVisitor) -> None:
         expr.setattr("val", mv.visitLoad(expr.value))
