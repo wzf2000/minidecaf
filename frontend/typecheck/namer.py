@@ -100,7 +100,7 @@ class Namer(Visitor[ScopeStack, None]):
         """
         symbol = ctx.findConflict(decl.ident)
         if symbol == None:
-            varSymbol = VarSymbol(decl.ident.name, decl.var_t.type)
+            varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
             ctx.declare(varSymbol)
             decl.setattr('symbol', varSymbol)
             if decl.init_expr != NULL:
@@ -138,9 +138,9 @@ class Namer(Visitor[ScopeStack, None]):
         2. If it has not been declared, raise a DecafUndefinedVarError.
         3. Set the 'symbol' attribute of ident.
         """
-        symbol = ctx.lookup(ident.name)
+        symbol = ctx.lookup(ident.value)
         if symbol == None:
-            raise DecafUndefinedVarError(ident.name)
+            raise DecafUndefinedVarError(ident.value)
         ident.setattr('symbol', symbol)
 
     def visitIntLiteral(self, expr: IntLiteral, ctx: ScopeStack) -> None:
