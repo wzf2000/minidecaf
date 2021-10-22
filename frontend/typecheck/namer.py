@@ -98,7 +98,7 @@ class Namer(Visitor[ScopeStack, None]):
         3. Set the 'symbol' attribute of decl.
         4. If there is an initial value, visit it.
         """
-        symbol = ctx.findConflict(decl.ident)
+        symbol = ctx.findConflict(decl.ident.value)
         if symbol == None:
             varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
             ctx.declare(varSymbol)
@@ -106,7 +106,7 @@ class Namer(Visitor[ScopeStack, None]):
             if decl.init_expr != NULL:
                 decl.init_expr.accept(self, ctx)
         else:
-            raise DecafDeclConflictError()
+            raise DecafDeclConflictError(decl.ident.value)
 
     def visitAssignment(self, expr: Assignment, ctx: ScopeStack) -> None:
         """
