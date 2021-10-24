@@ -41,6 +41,19 @@ class FuncVisitor:
         self.func.add(Assign(dst, src))
         return src
 
+    def visitLoadSymbol(self, symbol: str) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(LoadSymbol(temp, symbol))
+        return temp
+
+    def visitLoadMem(self, src: Temp, offset: int) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Load(temp, src, offset))
+        return temp
+
+    def visitStoreMem(self, src: Temp, base: Temp, offset: int) -> None:
+        self.func.add(Store(src, base, offset))
+
     def visitLoad(self, value: Union[int, str]) -> Temp:
         temp = self.freshTemp()
         if isinstance(value, int):
