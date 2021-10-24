@@ -1,5 +1,6 @@
 from frontend.parser.ply_parser import unary
 from frontend.symbol.funcsymbol import FuncSymbol
+from utils.error import DecafGlobalVarBadInitValueError
 import utils.riscv as riscv
 from frontend.ast import node
 from frontend.ast.tree import *
@@ -9,6 +10,7 @@ from frontend.type.array import ArrayType
 from utils.tac import tacop
 from utils.tac.funcvisitor import FuncVisitor
 from utils.tac.programwriter import ProgramWriter
+from utils.tac.tacinstr import Global, LoadSymbol
 from utils.tac.tacprog import TACProg
 from utils.tac.temp import Temp
 
@@ -27,6 +29,15 @@ class TACGen(Visitor[FuncVisitor, None]):
         pw = ProgramWriter(program.functions())
 
         mv_dict: dict[str, FuncVisitor] = {}
+
+        for child in program:
+            if isinstance(child, Declaration):
+                if child.init_expr == NULL:
+                    pw.globalVars.append(Global(child.ident.value))
+                else:
+                    if not isinstance(child.init_expr, IntLiteral):
+                        raise DecafGlobalVarBadInitValueError(child.ident.value)
+                    pw.globalVars.append(Global(child.ident.value, True, child.init_expr.value))
 
         for func_name, func in list(program.functions().items()):
             if func.ident.value == "main":
@@ -84,7 +95,13 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
         """
-        ident.setattr("val", ident.getattr("symbol").temp)
+        symbol: VarSymbol = ident.getattr("symbol")
+        if symbol.isGlobal:
+            addr = mv.visitLoadSymbol(ident.value)
+            symbol.temp = mv.visitLoadMem(addr, 0)
+            ident.setattr("val", symbol.temp)
+        else:
+            ident.setattr("val", symbol.temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
@@ -108,6 +125,11 @@ class TACGen(Visitor[FuncVisitor, None]):
         expr.lhs.accept(self, mv)
         temp = expr.lhs.getattr("val")
         expr.setattr("val", mv.visitAssignment(temp, expr.rhs.getattr("val")))
+        if isinstance(expr.lhs, Identifier):
+            symbol: VarSymbol = expr.lhs.getattr("symbol")
+            if symbol.isGlobal:
+                addr = mv.visitLoadSymbol(symbol.name)
+                mv.visitStoreMem(temp, addr, 0)
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)
