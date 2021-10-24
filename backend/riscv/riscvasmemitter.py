@@ -22,12 +22,27 @@ class RiscvAsmEmitter(AsmEmitter):
         self,
         allocatableRegs: list[Reg],
         callerSaveRegs: list[Reg],
+        globalVars: list[TACInstr],
     ) -> None:
-        super().__init__(allocatableRegs, callerSaveRegs)
+        super().__init__(allocatableRegs, callerSaveRegs, globalVars)
 
     
         # the start of the asm code
         # int step10, you need to add the declaration of global var here
+
+        for var in self.globalVars:
+            if isinstance(var, Global):
+                if var.initialized:
+                    self.printer.println(".data")
+                    self.printer.println(".global " + var.symbol)
+                    self.printer.printLabel(Label(LabelKind.BLOCK, var.symbol))
+                    self.printer.println(".word " + str(var.init))
+                else:
+                    self.printer.println(".bss")
+                    self.printer.println(".global " + var.symbol)
+                    self.printer.printLabel(Label(LabelKind.BLOCK, var.symbol))
+                    self.printer.println(".space 4")
+        
         self.printer.println(".text")
         self.printer.println(".global main")
         self.printer.println("")
@@ -73,6 +88,15 @@ class RiscvAsmEmitter(AsmEmitter):
 
         def visitLoadImm4(self, instr: LoadImm4) -> None:
             self.seq.append(Riscv.LoadImm(instr.dst, instr.value))
+
+        def visitLoadSymbol(self, instr: LoadSymbol) -> None:
+            self.seq.append(Riscv.LoadSymbol(instr.dst, instr.symbol))
+
+        def visitLoad(self, instr: Load) -> None:
+            self.seq.append(Riscv.LoadWord(instr.dst, instr.src, instr.offset))
+
+        def visitStore(self, instr: Store) -> None:
+            self.seq.append(Riscv.StoreWord(instr.src, instr.base, instr.offset))
 
         def visitUnary(self, instr: Unary) -> None:
             self.seq.append(Riscv.Unary(instr.op, instr.dst, instr.operand))
