@@ -46,7 +46,8 @@ class FuncVisitor:
         if isinstance(value, int):
             self.func.add(LoadImm4(temp, value))
         else:
-            self.func.add(LoadStrConst(temp, value))
+            pass
+            # self.func.add(LoadStrConst(temp, value))
         return temp
 
     def visitUnary(self, op: UnaryOp, operand: Temp) -> Temp:
@@ -79,6 +80,14 @@ class FuncVisitor:
 
     def visitMemo(self, content: str) -> None:
         self.func.add(Memo(content))
+
+    def visitParam(self, param: Temp) -> None:
+        self.func.add(Param(param))
+
+    def visitCall(self, label: Label) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Call(temp, label))
+        return temp
 
     def visitRaw(self, instr: TACInstr) -> None:
         self.func.add(instr)
