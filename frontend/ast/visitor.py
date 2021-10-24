@@ -31,6 +31,12 @@ class Visitor(Protocol[T, U]):  # type: ignore
     def visitBlock(self, that: Block, ctx: T) -> Optional[Sequence[Optional[U]]]:
         return self.visitOther(that, ctx)
 
+    def visitParameter(self, that: Parameter, ctx: T) -> Optional[U]:
+        return self.visitOther(that, ctx)
+
+    def visitFunctionCall(self, that: FunctionCall, ctx: T) -> Optional[U]:
+        return self.visitOther(that, ctx)
+
     def visitFunction(self, that: Function, ctx: T) -> Optional[U]:
         return self.visitOther(that, ctx)
 
