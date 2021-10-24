@@ -1,4 +1,5 @@
 import random
+import sys
 
 from backend.dataflow.basicblock import BasicBlock, BlockKind
 from backend.dataflow.cfg import CFG
@@ -34,9 +35,12 @@ class BruteRegAlloc(RegAlloc):
         self.bindings = {}
         for reg in emitter.allocatableRegs:
             reg.used = False
+        self.usedRegs: list[Reg] = []
+        self.params: list[Reg] = []
 
     def accept(self, graph: CFG, info: SubroutineInfo) -> None:
         subEmitter = self.emitter.emitSubroutine(info)
+        self.bind(Temp(-1), Riscv.FP)
         for i, bb in enumerate(graph.iterator()):
             # you need to think more here
             # maybe we don't need to alloc regs for all the basic blocks
@@ -95,7 +99,28 @@ class BruteRegAlloc(RegAlloc):
             else:
                 dstRegs.append(self.allocRegFor(temp, False, loc.liveIn, subEmitter))
 
-        subEmitter.emitNative(instr.toNative(dstRegs, srcRegs))
+        if isinstance(instr, Riscv.Call):
+            self.usedRegs = []
+            for reg in self.emitter.callerSaveRegs:
+                if reg.isUsed():
+                    self.usedRegs.append(reg)
+            for reg in self.usedRegs:
+                subEmitter.emitStoreToStack(reg)
+            subEmitter.emitNative(Riscv.SPAdd(-4 * len(self.params)))
+            for i, reg in enumerate(self.params):
+                subEmitter.emitNative(
+                    Riscv.NativeStoreWord(reg, Riscv.SP, 4 * i)
+                )
+        if isinstance(instr, Riscv.Push):
+            self.params.append(srcRegs[0])
+        else:
+            subEmitter.emitNative(instr.toNative(dstRegs, srcRegs))
+        if isinstance(instr, Riscv.Call):
+            subEmitter.emitNative(Riscv.LoadRet(instr.dst).toNative(dstRegs, srcRegs))
+            subEmitter.emitNative(Riscv.SPAdd(4 * len(self.params)))
+            self.params.clear()
+            for reg in self.usedRegs:
+                subEmitter.emitLoadFromStack(reg, reg.temp)
 
     def allocRegFor(
         self, temp: Temp, isRead: bool, live: set[int], subEmitter: SubroutineEmitter
@@ -118,7 +143,7 @@ class BruteRegAlloc(RegAlloc):
                 return reg
 
         reg = self.emitter.allocatableRegs[
-            random.randint(0, len(self.emitter.allocatableRegs))
+            random.randint(0, len(self.emitter.allocatableRegs) - 1)
         ]
         subEmitter.emitStoreToStack(reg)
         subEmitter.emitComment("  spill {} ({})".format(str(reg), str(reg.temp)))
