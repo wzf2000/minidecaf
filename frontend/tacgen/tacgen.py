@@ -1,4 +1,5 @@
 from frontend.parser.ply_parser import unary
+from frontend.symbol.funcsymbol import FuncSymbol
 import utils.riscv as riscv
 from frontend.ast import node
 from frontend.ast.tree import *
@@ -23,7 +24,19 @@ class TACGen(Visitor[FuncVisitor, None]):
     # Entry of this phase
     def transform(self, program: Program) -> TACProg:
         mainFunc = program.mainFunc()
-        pw = ProgramWriter(["main"])
+        pw = ProgramWriter(program.functions())
+
+        mv_dict: dict[str, FuncVisitor] = {}
+
+        for func_name, func in list(program.functions().items()):
+            if func.ident.value == "main":
+                continue
+            mv = pw.visitFunc(func_name, len(func.params))
+            mv_dict[func_name] = mv
+            symbol: FuncSymbol = func.getattr("symbol")
+            for param in func.params:
+                symbol.addParaTemp(param.accept(self, mv))
+
         # The function visitor of 'main' is special.
         mv = pw.visitMainFunc()
 
@@ -31,8 +44,27 @@ class TACGen(Visitor[FuncVisitor, None]):
         # Remember to call mv.visitEnd after the translation a function.
         mv.visitEnd()
 
+        for func_name, func in list(program.functions().items()):
+            if func.ident.value == "main":
+                continue
+            mv = mv_dict[func_name]
+            func.body.accept(self, mv)
+            mv.visitEnd()
+
         # Remember to call pw.visitEnd before finishing the translation phase.
         return pw.visitEnd()
+
+    def visitParameter(self, param: Parameter, mv: FuncVisitor) -> Temp:
+        symbol = param.ident.getattr("symbol")
+        symbol.temp = mv.freshTemp()
+        return symbol.temp
+
+    def visitFunctionCall(self, func: FunctionCall, mv: FuncVisitor) -> None:
+        for param in func.params:
+            param.accept(self, mv)
+        for param in func.params:
+            mv.visitParam(param.getattr("val"))
+        func.setattr("val", mv.visitCall(mv.ctx.getFuncLabel(func.ident.value)))
 
     def visitBlock(self, block: Block, mv: FuncVisitor) -> None:
         for child in block:
@@ -52,7 +84,7 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
         """
-        ident.setattr('val', ident.getattr('symbol').temp)
+        ident.setattr("val", ident.getattr("symbol").temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
@@ -60,9 +92,8 @@ class TACGen(Visitor[FuncVisitor, None]):
         2. Use mv.freshTemp to get a new temp variable for this symbol.
         3. If the declaration has an initial value, use mv.visitAssignment to set it.
         """
-        symbol = decl.getattr('symbol')
+        symbol = decl.getattr("symbol")
         symbol.temp = mv.freshTemp()
-        decl.ident.setattr('symbol', symbol)
         if decl.init_expr != NULL:
             decl.init_expr.accept(self, mv)
             mv.visitAssignment(symbol.temp, decl.init_expr.getattr("val"))
