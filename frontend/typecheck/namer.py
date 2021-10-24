@@ -113,10 +113,10 @@ class Namer(Visitor[ScopeStack, None]):
         """
         symbol = ctx.findConflict(decl.ident.value)
         if symbol == None:
-            if decl.init_expr != NULL:
-                decl.init_expr.accept(self, ctx)
             varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
             ctx.declare(varSymbol)
+            if decl.init_expr != NULL:
+                decl.init_expr.accept(self, ctx)
             decl.setattr('symbol', varSymbol)
         else:
             raise DecafDeclConflictError(decl.ident.value)
