@@ -37,16 +37,53 @@ class Namer(Visitor[ScopeStack, None]):
         if not program.hasMainFunc():
             raise DecafNoMainFuncError
 
-        program.mainFunc().accept(self, ctx)
+        for func in program:
+            func.accept(self, ctx)
+
+    def visitParameter(self, param: Parameter, ctx: ScopeStack) -> None:
+        symbol = ctx.findConflict(param.ident.value)
+        if symbol == None:
+            varSymbol = VarSymbol(param.ident.value, param.var_t.type)
+            ctx.declare(varSymbol)
+            param.ident.setattr("symbol", varSymbol)
+        else:
+            raise DecafDeclConflictError(param.ident.value)
+
+    def visitFunctionCall(self, func: FunctionCall, ctx: ScopeStack) -> None:
+        if not ctx.globalscope.containsKey(func.ident.value):
+            raise DecafUndefinedFuncError(func.ident.value)
+        if not ctx.lookup(func.ident.value).isFunc:
+            raise DecafBadFuncCallError(func.ident.value)
+        symbol: FuncSymbol = ctx.globalscope.get(func.ident.value)
+        if symbol.parameterNum != len(func.params):
+            raise DecafBadFuncCallError(func.ident.value)
+        func.ident.setattr("symbol", symbol)
+        for param in func.params:
+            param.accept(self, ctx)
 
     def visitFunction(self, func: Function, ctx: ScopeStack) -> None:
-        func.body.accept(self, ctx)
+        scope = Scope(ScopeKind.LOCAL)
+        if ctx.globalscope.containsKey(func.ident.value):
+            raise DecafDeclConflictError(func.ident.value)
+        funcSymbol = FuncSymbol(func.ident.value, func.ret_t, scope)
+        ctx.globalscope.declare(funcSymbol)
+        ctx.open(Scope(ScopeKind.LOCAL))
+        if len(func.params) > 0 and func.ident.value == "main":
+            raise DecafDeclConflictError(func.ident.value)
+        for param in func.params:
+            param.accept(self, ctx)
+            funcSymbol.addParaType(param.var_t)
+        for child in func.body:
+            child.accept(self, ctx)
+        ctx.close()
+        func.setattr("symbol", funcSymbol)
 
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
         ctx.open(Scope(ScopeKind.LOCAL))
         for child in block:
             child.accept(self, ctx)
         ctx.close()
+
     def visitReturn(self, stmt: Return, ctx: ScopeStack) -> None:
         stmt.expr.accept(self, ctx)
 
@@ -117,7 +154,7 @@ class Namer(Visitor[ScopeStack, None]):
                 decl.init_expr.accept(self, ctx)
             varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
             ctx.declare(varSymbol)
-            decl.setattr('symbol', varSymbol)
+            decl.setattr("symbol", varSymbol)
         else:
             raise DecafDeclConflictError(decl.ident.value)
 
@@ -154,7 +191,7 @@ class Namer(Visitor[ScopeStack, None]):
         symbol = ctx.lookup(ident.value)
         if symbol == None:
             raise DecafUndefinedVarError(ident.value)
-        ident.setattr('symbol', symbol)
+        ident.setattr("symbol", symbol)
 
     def visitIntLiteral(self, expr: IntLiteral, ctx: ScopeStack) -> None:
         value = expr.value
