@@ -58,6 +58,7 @@ class RiscvAsmEmitter(AsmEmitter):
         def __init__(self, entry: Label) -> None:
             self.entry = entry
             self.seq = []
+            self.params: list[Param] = []
 
         # in step11, you need to think about how to deal with globalTemp in almost all the visit functions. 
         def visitReturn(self, instr: Return) -> None:
@@ -108,6 +109,16 @@ class RiscvAsmEmitter(AsmEmitter):
         
         def visitBranch(self, instr: Branch) -> None:
             self.seq.append(Riscv.Jump(instr.target))
+        
+        def visitParam(self, instr: Param) -> None:
+            self.params.append(instr)
+        
+        def visitCall(self, instr: Call) -> None:
+            for i, param in enumerate(self.params):
+                self.seq.append(Riscv.Push(param.src, 4 * i))
+            self.seq.append(Riscv.Call(instr.label, instr.dst))
+            self.seq.append(Riscv.LoadRet(instr.dst))
+            self.params.clear()
 
         # in step9, you need to think about how to pass the parameters and how to store and restore callerSave regs
         # in step11, you need to think about how to store the array 
@@ -132,6 +143,8 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
         self.printer.printLabel(info.funcLabel)
 
         # in step9, step11 you can compute the offset of local array and parameters here
+        self.paramCount = info.funcLabel.paramCount
+        self.paramOffset = [index * 4 for index in range(self.paramCount)]
 
     def emitComment(self, comment: str) -> None:
         # you can add some log here to help you debug
@@ -152,7 +165,11 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
     # usually happen when using a temp which is stored to stack before
     # in step9, you need to think about the fuction parameters here
     def emitLoadFromStack(self, dst: Reg, src: Temp):
-        if src.index not in self.offsets:
+        if src.index < self.paramCount:
+            self.buf.append(
+                Riscv.NativeLoadWord(dst, Riscv.FP, self.paramOffset[src.index])
+            )
+        elif src.index not in self.offsets:
             raise IllegalArgumentException()
         else:
             self.buf.append(
@@ -180,6 +197,12 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
                     Riscv.NativeStoreWord(Riscv.CalleeSaved[i], Riscv.SP, 4 * i)
                 )
 
+        self.printer.printInstr(
+            Riscv.NativeStoreWord(Riscv.RA, Riscv.SP, 4 * len(Riscv.CalleeSaved))
+        )
+
+        self.printer.printInstr(Riscv.GetFP(self.nextLocalOffset))
+
         self.printer.printComment("end of prologue")
         self.printer.println("")
 
@@ -205,6 +228,10 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
                 self.printer.printInstr(
                     Riscv.NativeLoadWord(Riscv.CalleeSaved[i], Riscv.SP, 4 * i)
                 )
+
+        self.printer.printInstr(
+            Riscv.NativeLoadWord(Riscv.RA, Riscv.SP, 4 * len(Riscv.CalleeSaved))
+        )
 
         self.printer.printInstr(Riscv.SPAdd(self.nextLocalOffset))
         self.printer.printComment("end of epilogue")
