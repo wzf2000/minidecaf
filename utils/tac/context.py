@@ -1,4 +1,5 @@
 from __future__ import annotations
+from frontend.ast.tree import Function
 
 from utils.label.blocklabel import BlockLabel
 from utils.label.funclabel import FuncLabel
@@ -11,8 +12,8 @@ class Context:
         self.funcs = []
         self.nextTempLabelId = 1
 
-    def putFuncLabel(self, name: str) -> None:
-        self.labels[name] = FuncLabel(name)
+    def putFuncLabel(self, func: Function) -> None:
+        self.labels[func.ident.value] = FuncLabel(func.ident.value, len(func.params))
 
     def getFuncLabel(self, name: str) -> FuncLabel:
         return self.labels[name]
