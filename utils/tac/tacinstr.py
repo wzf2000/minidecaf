@@ -55,14 +55,17 @@ class TACInstr:
 
 # Load from address.
 class Global(TACInstr):
-    def __init__(self, symbol: str, initialized: bool = False, init: int = 0) -> None:
+    def __init__(self, symbol: str, initialized: bool = False, init: int = 0, size: Optional[int] = None) -> None:
         super().__init__(InstrKind.SEQ, [], [], None)
         self.symbol = symbol
         self.initialized = initialized
         self.init = init
+        self.size = size
 
     def __str__(self) -> str:
-        if self.initialized:
+        if self.size != None:
+            return "GLOBAL %s %d" % (self.symbol, self.size)
+        elif self.initialized:
             return "GLOBAL %s %d" % (self.symbol, self.init)
         else:
             return "GLOBAL %s" % (self.symbol)
@@ -97,6 +100,20 @@ class LoadSymbol(TACInstr):
 
     def accept(self, v: TACVisitor) -> None:
         v.visitLoadSymbol(self)
+
+
+# Alloc from stack.
+class Alloc(TACInstr):
+    def __init__(self, dst: Temp, size: int) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [], None)
+        self.dst = dst
+        self.size = size
+
+    def __str__(self) -> str:
+        return "%s = ALLOC %d" % (self.dst, self.size)
+
+    def accept(self, v: TACVisitor) -> None:
+        v.visitAlloc(self)
 
 
 # Load from address.
@@ -154,7 +171,7 @@ class Unary(TACInstr):
     def __str__(self) -> str:
         return "%s = %s %s" % (
             self.dst,
-            ("-" if (self.op == UnaryOp.NEG) else "!" if (self.op == UnaryOp.NOT) else "SNEZ" if (self.OP == UnaryOp.SNEZ) else "SEQZ"),
+            ("-" if (self.op == UnaryOp.NEG) else "!" if (self.op == UnaryOp.NOT) else "SNEZ" if (self.op == UnaryOp.SNEZ) else "SEQZ"),
             self.operand,
         )
 

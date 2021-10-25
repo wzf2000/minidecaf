@@ -46,6 +46,11 @@ class FuncVisitor:
         self.func.add(LoadSymbol(temp, symbol))
         return temp
 
+    def visitAlloc(self, size: int) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Alloc(temp, size))
+        return temp
+
     def visitLoadMem(self, src: Temp, offset: int) -> Temp:
         temp = self.freshTemp()
         self.func.add(Load(temp, src, offset))
