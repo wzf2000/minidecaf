@@ -44,7 +44,11 @@ class Namer(Visitor[ScopeStack, None]):
                 symbol = ctx.findConflict(child.ident.value)
                 if symbol != None:
                     raise DecafGlobalVarDefinedTwiceError(child.ident.value)
-                globalVar = VarSymbol(child.ident.value, child.var_t, True)
+                for size in child.array_size:
+                    if size <= 0:
+                        raise DecafBadArraySizeError()
+                type = ArrayType.multidim(child.var_t.type, *(child.array_size))
+                globalVar = VarSymbol(child.ident.value, type, True)
                 ctx.globalscope.declare(globalVar)
                 child.ident.setattr("symbol", globalVar)
 
@@ -73,7 +77,7 @@ class Namer(Visitor[ScopeStack, None]):
         scope = Scope(ScopeKind.LOCAL)
         if ctx.globalscope.containsKey(func.ident.value):
             raise DecafDeclConflictError(func.ident.value)
-        funcSymbol = FuncSymbol(func.ident.value, func.ret_t, scope)
+        funcSymbol = FuncSymbol(func.ident.value, func.ret_t.type, scope)
         ctx.globalscope.declare(funcSymbol)
         ctx.open(Scope(ScopeKind.LOCAL))
         if len(func.params) > 0 and func.ident.value == "main":
@@ -158,11 +162,16 @@ class Namer(Visitor[ScopeStack, None]):
         """
         symbol = ctx.findConflict(decl.ident.value)
         if symbol == None:
-            varSymbol = VarSymbol(decl.ident.value, decl.var_t.type)
+            for size in decl.array_size:
+                if size <= 0:
+                    raise DecafBadArraySizeError()
+            type = ArrayType.multidim(decl.var_t.type, *(decl.array_size))
+            varSymbol = VarSymbol(decl.ident.value, type)
             ctx.declare(varSymbol)
             if decl.init_expr != NULL:
                 decl.init_expr.accept(self, ctx)
-            decl.setattr('symbol', varSymbol)
+            decl.ident.setattr("symbol", varSymbol)
+            decl.setattr("symbol", varSymbol)
         else:
             raise DecafDeclConflictError(decl.ident.value)
 
@@ -170,8 +179,6 @@ class Namer(Visitor[ScopeStack, None]):
         """
         1. Refer to the implementation of visitBinary.
         """
-        if not isinstance(expr.lhs, Identifier):
-            raise DecafSyntaxError('Not a var ref!')
         expr.lhs.accept(self, ctx)
         expr.rhs.accept(self, ctx)
 
@@ -200,6 +207,12 @@ class Namer(Visitor[ScopeStack, None]):
         if symbol == None:
             raise DecafUndefinedVarError(ident.value)
         ident.setattr("symbol", symbol)
+
+    def visitReference(self, ref: Reference, ctx: ScopeStack) -> None:
+        ref.base.accept(self, ctx)
+        ref.setattr("symbol", ref.base.getattr("symbol"))
+        if ref.index != NULL:
+            ref.index.accept(self, ctx)
 
     def visitIntLiteral(self, expr: IntLiteral, ctx: ScopeStack) -> None:
         value = expr.value
