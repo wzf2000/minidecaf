@@ -1,5 +1,6 @@
 from frontend.parser.ply_parser import unary
 from frontend.symbol.funcsymbol import FuncSymbol
+from frontend.type import builtin_type
 from utils.error import DecafGlobalVarBadInitValueError
 import utils.riscv as riscv
 from frontend.ast import node
@@ -14,6 +15,7 @@ from utils.tac.tacinstr import Global, LoadSymbol
 from utils.tac.tacprog import TACProg
 from utils.tac.temp import Temp
 
+import sys
 """
 The TAC generation phase: translate the abstract syntax tree into three-address code.
 """
@@ -32,7 +34,10 @@ class TACGen(Visitor[FuncVisitor, None]):
 
         for child in program:
             if isinstance(child, Declaration):
-                if child.init_expr == NULL:
+                if child.array_size != []:
+                    symbol: VarSymbol = child.ident.getattr("symbol")
+                    pw.globalVars.append(Global(child.ident.value, False, 0, symbol.type.size))
+                elif child.init_expr == NULL:
                     pw.globalVars.append(Global(child.ident.value))
                 else:
                     if not isinstance(child.init_expr, IntLiteral):
@@ -92,41 +97,62 @@ class TACGen(Visitor[FuncVisitor, None]):
         mv.visitBranch(mv.getContinueLabel())
 
     def visitIdentifier(self, ident: Identifier, mv: FuncVisitor) -> None:
-        """
-        1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
-        """
         symbol: VarSymbol = ident.getattr("symbol")
-        if symbol.isGlobal:
-            addr = mv.visitLoadSymbol(ident.value)
-            symbol.temp = mv.visitLoadMem(addr, 0)
-            ident.setattr("val", symbol.temp)
+        if isinstance(symbol.type, builtin_type.BuiltinType):
+            if symbol.isGlobal:
+                addr = mv.visitLoadSymbol(ident.value)
+                symbol.temp = mv.visitLoadMem(addr, 0)
+                ident.setattr("val", symbol.temp)
+            else:
+                ident.setattr("val", symbol.temp)
         else:
-            ident.setattr("val", symbol.temp)
+            if symbol.isGlobal:
+                symbol.temp = mv.visitLoadSymbol(ident.value)
+                ident.setattr("val", symbol.temp)
+            else:
+                ident.setattr("val", symbol.temp)
+
+    def visitReference(self, ref: Reference, mv: FuncVisitor) -> None:
+        ref.base.accept(self, mv)
+        if ref.index != NULL:
+            ref.index.accept(self, mv)
+        ref.setattr("val", ref.base.getattr("val"))
+        if isinstance(ref.base.type, ArrayType):
+            if ref.index == NULL:
+                temp = mv.visitLoad(0)
+                ref.setattr("index", temp)
+            else:
+                temp = mv.visitBinary(tacop.BinaryOp.ADD, ref.base.getattr("index"), ref.index.getattr("val"))
+                if isinstance(ref.type, ArrayType):
+                    mv.visitBinarySelf(tacop.BinaryOp.MUL, temp, mv.visitLoad(ref.type.length))
+                else:
+                    mv.visitBinarySelf(tacop.BinaryOp.MUL, temp, mv.visitLoad(4))
+                    mv.visitBinarySelf(tacop.BinaryOp.ADD, temp, ref.getattr("val"))
+                    ref.setattr("val", mv.visitLoadMem(temp, 0))
+                ref.setattr("index", temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
-        """
-        1. Get the 'symbol' attribute of decl.
-        2. Use mv.freshTemp to get a new temp variable for this symbol.
-        3. If the declaration has an initial value, use mv.visitAssignment to set it.
-        """
-        symbol = decl.getattr("symbol")
+        symbol: VarSymbol = decl.getattr("symbol")
         symbol.temp = mv.freshTemp()
+        if not isinstance(symbol.type, builtin_type.BuiltinType):
+            size = symbol.type.size
+            print(decl, file=sys.stderr)
+            symbol.temp = mv.visitAlloc(size)
         if decl.init_expr != NULL:
             decl.init_expr.accept(self, mv)
             mv.visitAssignment(symbol.temp, decl.init_expr.getattr("val"))
 
     def visitAssignment(self, expr: Assignment, mv: FuncVisitor) -> None:
-        """
-        1. Visit the right hand side of expr, and get the temp variable of left hand side.
-        2. Use mv.visitAssignment to emit an assignment instruction.
-        3. Set the 'val' attribute of expr as the value of assignment instruction.
-        """
         expr.rhs.accept(self, mv)
         expr.lhs.accept(self, mv)
-        temp = expr.lhs.getattr("val")
-        expr.setattr("val", mv.visitAssignment(temp, expr.rhs.getattr("val")))
-        if isinstance(expr.lhs, Identifier):
-            symbol: VarSymbol = expr.lhs.getattr("symbol")
+        symbol: VarSymbol = expr.lhs.getattr("symbol")
+        if isinstance(symbol.type, ArrayType):
+            addr = expr.lhs.getattr("index")
+            mv.visitStoreMem(expr.rhs.getattr("val"), addr, 0)
+            expr.setattr("val", expr.rhs.getattr("val"))
+        else:
+            temp = expr.lhs.getattr("val")
+            expr.setattr("val", mv.visitAssignment(temp, expr.rhs.getattr("val")))
             if symbol.isGlobal:
                 addr = mv.visitLoadSymbol(symbol.name)
                 mv.visitStoreMem(temp, addr, 0)
