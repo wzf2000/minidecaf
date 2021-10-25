@@ -53,6 +53,24 @@ class TACInstr:
         pass
 
 
+# Load from address.
+class Global(TACInstr):
+    def __init__(self, symbol: str, initialized: bool = False, init: int = 0) -> None:
+        super().__init__(InstrKind.SEQ, [], [], None)
+        self.symbol = symbol
+        self.initialized = initialized
+        self.init = init
+
+    def __str__(self) -> str:
+        if self.initialized:
+            return "GLOBAL %s %d" % (self.symbol, self.init)
+        else:
+            return "GLOBAL %s" % (self.symbol)
+
+    def accept(self, v: TACVisitor) -> None:
+        v.visitGlobal(self)
+
+
 # Assignment instruction.
 class Assign(TACInstr):
     def __init__(self, dst: Temp, src: Temp) -> None:
@@ -65,6 +83,50 @@ class Assign(TACInstr):
 
     def accept(self, v: TACVisitor) -> None:
         v.visitAssign(self)
+
+
+# Load symbol address.
+class LoadSymbol(TACInstr):
+    def __init__(self, dst: Temp, symbol: str) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [], None)
+        self.dst = dst
+        self.symbol = symbol
+
+    def __str__(self) -> str:
+        return "%s = LOAD_SYMBOL %s" % (self.dst, self.symbol)
+
+    def accept(self, v: TACVisitor) -> None:
+        v.visitLoadSymbol(self)
+
+
+# Load from address.
+class Load(TACInstr):
+    def __init__(self, dst: Temp, src: Temp, offset: int) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [src], None)
+        self.dst = dst
+        self.src = src
+        self.offset = offset
+
+    def __str__(self) -> str:
+        return "%s = LOAD %s, %s" % (self.dst, self.src, self.offset)
+
+    def accept(self, v: TACVisitor) -> None:
+        v.visitLoad(self)
+
+
+# Load from address.
+class Store(TACInstr):
+    def __init__(self, src: Temp, base: Temp, offset: int) -> None:
+        super().__init__(InstrKind.SEQ, [], [src, base], None)
+        self.src = src
+        self.base = base
+        self.offset = offset
+
+    def __str__(self) -> str:
+        return "STORE %s, %s(%s)" % (self.srcs[0], self.offset, self.srcs[1])
+
+    def accept(self, v: TACVisitor) -> None:
+        v.visitStore(self)
 
 
 # Loading an immediate 32-bit constant.
@@ -92,7 +154,7 @@ class Unary(TACInstr):
     def __str__(self) -> str:
         return "%s = %s %s" % (
             self.dst,
-            ("-" if (self.op == UnaryOp.NEG) else "!"),
+            ("-" if (self.op == UnaryOp.NEG) else "!" if (self.op == UnaryOp.NOT) else "SNEZ" if (self.OP == UnaryOp.SNEZ) else "SEQZ"),
             self.operand,
         )
 
@@ -202,3 +264,28 @@ class Mark(TACInstr):
 
     def accept(self, v: TACVisitor) -> None:
         v.visitMark(self)
+
+
+class Param(TACInstr):
+    def __init__(self, src: Temp) -> None:
+        super().__init__(InstrKind.SEQ, [], [src], None)
+        self.src = src
+
+    def __str__(self) -> str:
+        return "PARAM %s" % (self.src)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitParam(self)
+
+
+class Call(TACInstr):
+    def __init__(self, dst: Temp, label: Label) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [], label)
+        self.dst = dst
+        self.label = label
+
+    def __str__(self) -> str:
+        return "%s = CALL %s" % (self.dst, self.label)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitCall(self)

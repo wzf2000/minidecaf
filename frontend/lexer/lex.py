@@ -16,11 +16,15 @@ reserved = {
     "int": "Int",
     "if": "If",
     "else": "Else",
+    "for": "For",
     "while": "While",
+    "do": "Do",
     "break": "Break",
+    "continue": "Continue",
 }
 
 t_Semi = ";"
+t_Comma = ","
 
 t_LParen = "("
 t_RParen = ")"

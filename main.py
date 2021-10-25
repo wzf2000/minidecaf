@@ -5,7 +5,7 @@ from backend.asm import Asm
 from backend.reg.bruteregalloc import BruteRegAlloc
 from backend.riscv.riscvasmemitter import RiscvAsmEmitter
 from frontend.ast.tree import Program
-from frontend.lexer import lex, lexer
+from frontend.lexer import lexer
 from frontend.parser import parser
 from frontend.tacgen.tacgen import TACGen
 from frontend.typecheck.namer import Namer
@@ -57,42 +57,46 @@ def step_tac(p: Program):
 
 # Target code generation stage: Three-address code -> RISC-V assembly code
 def step_asm(p: TACProg):
-    riscvAsmEmitter = RiscvAsmEmitter(Riscv.AllocatableRegs, Riscv.CallerSaved)
+    riscvAsmEmitter = RiscvAsmEmitter(Riscv.AllocatableRegs, Riscv.CallerSaved, p.globalVars)
     asm = Asm(riscvAsmEmitter, BruteRegAlloc(riscvAsmEmitter))
     prog = asm.transform(p)
     return prog
 
+# hope all of you happiness
+# enjoy potato chips
 
 def main():
     args = parseArgs()
 
     def _parse():
         r = step_parse(args)
-        #print("\nParsed AST:\n")
-        #printer = TreePrinter(indentLen=2)
-        #printer.work(r)
+        # print("\nParsed AST:\n")
+        # printer = TreePrinter(indentLen=2)
+        # printer.work(r)
         return r
 
     def _tac():
         tac = step_tac(_parse())
-        #print("\nGenerated TAC:\n")
-        #tac.printTo()
+        # print("\nGenerated TAC:\n")
+        # tac.printTo()
         return tac
 
     def _asm():
         asm = step_asm(_tac())
-        #print("\nGenerated ASM:\n")
-        #print(asm)
+        # print("\nGenerated ASM:\n")
+        # print(asm)
         return asm
 
     if args.riscv:
         prog = _asm()
+        print(prog)
     elif args.tac:
         prog = _tac()
+        prog.printTo()
     elif args.parse:
         prog = _parse()
-
-    print(prog)
+        printer = TreePrinter(indentLen=2)
+        printer.work(prog)
 
     return
 

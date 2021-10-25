@@ -22,6 +22,16 @@ class CFG:
         for (u, v) in edges:
             self.links[u][1].add(v)
             self.links[v][0].add(u)
+        
+        self.vis: list[int] = [0] * len(nodes)
+        self.dfs(0)
+
+    def dfs(self, id):
+        if self.vis[id] > 0:
+            return
+        self.vis[id] = 1
+        for x in self.links[id][1]:
+            self.dfs(x)
 
     def getBlock(self, id):
         return self.nodes[id]

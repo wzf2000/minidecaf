@@ -39,9 +39,30 @@ def p_empty(p: yacc.YaccProduction):
     pass
 
 
+def p_function_list_empty(p):
+    """
+    function_list : empty
+    """
+    p[0] = []
+
+
+def p_global_var(p):
+    """
+    function_list : declaration Semi function_list
+    """
+    p[0] = [p[1]] + p[3]
+
+
+def p_function_list(p):
+    """
+    function_list : function function_list
+    """
+    p[0] = [p[1]] + p[2]
+
+
 def p_program(p):
     """
-    program : function
+    program : function_list
     """
     p[0] = Program(p[1])
 
@@ -53,11 +74,39 @@ def p_type(p):
     p[0] = TInt()
 
 
+def p_parameter(p):
+    """
+    parameter : type Identifier
+    """
+    p[0] = Parameter(p[1], p[2])
+
+
+def p_parameter_list_empty(p):
+    """
+    parameter_list : empty
+    """
+    p[0] = []
+
+
+def p_parameter_list_only(p):
+    """
+    parameter_list : parameter
+    """
+    p[0] = [p[1]]
+
+
+def p_parameter_list(p):
+    """
+    parameter_list : parameter Comma parameter_list
+    """
+    p[0] = [p[1]] + p[3]
+
+
 def p_function_def(p):
     """
-    function : type Identifier LParen RParen LBrace block RBrace
+    function : type Identifier LParen parameter_list RParen LBrace block RBrace
     """
-    p[0] = Function(p[1], p[2], p[6])
+    p[0] = Function(p[1], p[2], p[4], p[7])
 
 
 def p_block(p):
@@ -107,12 +156,29 @@ def p_if(p):
     p[0] = If(p[3], p[5])
 
 
+def p_for(p):
+    """
+    statement_matched : For LParen opt_expression Semi opt_expression Semi opt_expression RParen statement_matched
+        | For LParen declaration Semi opt_expression Semi opt_expression RParen statement_matched
+    statement_unmatched : For LParen opt_expression Semi opt_expression Semi opt_expression RParen statement_unmatched
+        | For LParen declaration Semi opt_expression Semi opt_expression RParen statement_unmatched
+    """
+    p[0] = For(p[3], p[5], p[7], p[9])
+
+
 def p_while(p):
     """
     statement_matched : While LParen expression RParen statement_matched
     statement_unmatched : While LParen expression RParen statement_unmatched
     """
     p[0] = While(p[3], p[5])
+
+
+def p_do_while(p):
+    """
+    statement_matched : Do statement_matched While LParen expression RParen Semi
+    """
+    p[0] = DoWhile(p[2], p[5])
 
 
 def p_return(p):
@@ -141,6 +207,13 @@ def p_break(p):
     statement_matched : Break Semi
     """
     p[0] = Break()
+
+
+def p_continue(p):
+    """
+    statement_matched : Continue Semi
+    """
+    p[0] = Continue()
 
 
 def p_opt_expression(p):
@@ -189,6 +262,34 @@ def p_expression_precedence(p):
     postfix : primary
     """
     p[0] = p[1]
+
+
+def p_postfix(p):
+    """
+    postfix : Identifier LParen expression_list RParen
+    """
+    p[0] = FunctionCall(p[1], p[3])
+
+
+def p_expression_list_empty(p):
+    """
+    expression_list : empty
+    """
+    p[0] = []
+
+
+def p_expression_list_only(p):
+    """
+    expression_list : expression
+    """
+    p[0] = [p[1]]
+
+
+def p_expression_list(p):
+    """
+    expression_list : expression Comma expression_list
+    """
+    p[0] = [p[1]] + p[3]
 
 
 def p_unary_expression(p):

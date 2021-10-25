@@ -50,7 +50,7 @@ class Riscv:
 
     CallerSaved = [T0, T1, T2, T3, T4, T5, T6, A0, A1, A2, A3, A4, A5, A6, A7]
 
-    CalleeSaved = [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11]
+    CalleeSaved = [S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, FP]
 
     AllocatableRegs = CallerSaved + CalleeSaved
 
@@ -85,6 +85,38 @@ class Riscv:
 
         def isLabel(self) -> bool:
             return True
+    
+    class LoadSymbol(TACInstr):
+        def __init__(self, dst: Temp, symbol: str) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], None)
+            self.symbol = symbol
+
+        def __str__(self) -> str:
+            return "la " + Riscv.FMT2.format(
+                str(self.dsts[0]), self.symbol
+            )
+    
+    class LoadWord(TACInstr):
+        def __init__(self, dst: Temp, base: Temp, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [base], None)
+            self.offset = offset
+
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "lw " + Riscv.FMT_OFFSET.format(
+                str(self.dsts[0]), str(self.offset), str(self.srcs[0])
+            )
+    
+    class StoreWord(TACInstr):
+        def __init__(self, src: Temp, base: Temp, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [], [src, base], None)
+            self.offset = offset
+
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "sw " + Riscv.FMT_OFFSET.format(
+                str(self.srcs[0]), str(self.offset), str(self.srcs[1])
+            )
 
     class LoadImm(TACInstr):
         def __init__(self, dst: Temp, value: int) -> None:
@@ -137,6 +169,34 @@ class Riscv:
         def __str__(self) -> str:
             return "j " + str(self.target)
 
+    class Push(TACInstr):
+        def __init__(self, src: Temp, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [], [src], None)
+            self.src = src
+            self.offset = offset
+        
+        def __str__(self) -> str:
+            return "sw " + Riscv.FMT_OFFSET.format(
+                str(self.srcs[0]), str(self.offset), str(Riscv.SP)
+            )
+
+    class LoadRet(TACInstr):
+        def __init__(self, dst: Temp) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], None)
+            self.dst = dst
+        
+        def __str__(self) -> str:
+            return "mv " + Riscv.FMT2.format(str(self.dsts[0]), str(Riscv.A0))
+
+    class Call(TACInstr):
+        def __init__(self, target: Label, dst: Temp) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], target)
+            self.target = target
+            self.dst = dst
+        
+        def __str__(self) -> str:
+            return "call " + self.target.name
+
     class SPAdd(NativeInstr):
         def __init__(self, offset: int) -> None:
             super().__init__(InstrKind.SEQ, [Riscv.SP], [Riscv.SP], None)
@@ -146,6 +206,17 @@ class Riscv:
             assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
             return "addi " + Riscv.FMT3.format(
                 str(Riscv.SP), str(Riscv.SP), str(self.offset)
+            )
+    
+    class GetFP(NativeInstr):
+        def __init__(self, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [Riscv.FP], [Riscv.SP], None)
+            self.offset = offset
+
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "addi " + Riscv.FMT3.format(
+                str(Riscv.FP), str(Riscv.SP), str(self.offset)
             )
 
     class NativeStoreWord(NativeInstr):

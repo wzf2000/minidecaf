@@ -41,12 +41,26 @@ class FuncVisitor:
         self.func.add(Assign(dst, src))
         return src
 
+    def visitLoadSymbol(self, symbol: str) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(LoadSymbol(temp, symbol))
+        return temp
+
+    def visitLoadMem(self, src: Temp, offset: int) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Load(temp, src, offset))
+        return temp
+
+    def visitStoreMem(self, src: Temp, base: Temp, offset: int) -> None:
+        self.func.add(Store(src, base, offset))
+
     def visitLoad(self, value: Union[int, str]) -> Temp:
         temp = self.freshTemp()
         if isinstance(value, int):
             self.func.add(LoadImm4(temp, value))
         else:
-            self.func.add(LoadStrConst(temp, value))
+            pass
+            # self.func.add(LoadStrConst(temp, value))
         return temp
 
     def visitUnary(self, op: UnaryOp, operand: Temp) -> Temp:
@@ -79,6 +93,14 @@ class FuncVisitor:
 
     def visitMemo(self, content: str) -> None:
         self.func.add(Memo(content))
+
+    def visitParam(self, param: Temp) -> None:
+        self.func.add(Param(param))
+
+    def visitCall(self, label: Label) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Call(temp, label))
+        return temp
 
     def visitRaw(self, instr: TACInstr) -> None:
         self.func.add(instr)
