@@ -33,6 +33,7 @@ class BruteRegAlloc(RegAlloc):
     def __init__(self, emitter: RiscvAsmEmitter) -> None:
         super().__init__(emitter)
         self.bindings = {}
+        self.emitter = emitter
         for reg in emitter.allocatableRegs:
             reg.used = False
         self.usedRegs: list[Reg] = []
@@ -40,6 +41,8 @@ class BruteRegAlloc(RegAlloc):
 
     def accept(self, graph: CFG, info: SubroutineInfo) -> None:
         subEmitter = self.emitter.emitSubroutine(info)
+        for reg in self.emitter.allocatableRegs:
+            reg.used = False
         self.bind(Temp(-1), Riscv.FP)
         for i, bb in enumerate(graph.iterator()):
             # you need to think more here
