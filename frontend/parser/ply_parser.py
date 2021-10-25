@@ -230,18 +230,32 @@ def p_opt_expression_empty(p):
     p[0] = NULL
 
 
-def p_declaration(p):
-    """
-    declaration : type Identifier
-    """
-    p[0] = Declaration(p[1], p[2])
-
-
 def p_declaration_init(p):
     """
     declaration : type Identifier Assign expression
     """
     p[0] = Declaration(p[1], p[2], p[4])
+
+
+def p_array_empty(p):
+    """
+    Array : empty
+    """
+    p[0] = []
+
+
+def p_array(p):
+    """
+    Array : Array LBrack Integer RBrack
+    """
+    p[0] = p[1] + [p[3]]
+
+
+def p_declaration_array(p):
+    """
+    declaration : type Identifier Array
+    """
+    p[0] = Declaration(p[1], p[2], None, p[3])
 
 
 def p_expression_precedence(p):
@@ -264,7 +278,7 @@ def p_expression_precedence(p):
     p[0] = p[1]
 
 
-def p_postfix(p):
+def p_postfix_functioncall(p):
     """
     postfix : Identifier LParen expression_list RParen
     """
@@ -301,9 +315,22 @@ def p_unary_expression(p):
     unary(p)
 
 
+def p_ref_identifier(p):
+    """
+    Reference : Identifier
+    """
+    p[0] = Reference(p[1])
+
+
+def p_ref_array(p):
+    """
+    Reference : Reference LBrack expression RBrack
+    """
+    p[0] = Reference(p[1], p[3])
+
 def p_binary_expression(p):
     """
-    assignment : Identifier Assign expression
+    assignment : Reference Assign expression
     logical_or : logical_or Or logical_and
     logical_and : logical_and And bit_or
     bit_or : bit_or BitOr xor
@@ -340,7 +367,7 @@ def p_int_literal_expression(p):
 
 def p_identifier_expression(p):
     """
-    primary : Identifier
+    primary : Reference
     """
     p[0] = p[1]
 
