@@ -189,13 +189,24 @@ class Riscv:
             return "mv " + Riscv.FMT2.format(str(self.dsts[0]), str(Riscv.A0))
 
     class Call(TACInstr):
-        def __init__(self, target: Label, dst: Temp) -> None:
-            super().__init__(InstrKind.SEQ, [dst], [], target)
+        def __init__(self, target: Label, dst: Temp, srcs: list[Temp]) -> None:
+            super().__init__(InstrKind.SEQ, [dst], srcs, target)
             self.target = target
             self.dst = dst
         
         def __str__(self) -> str:
             return "call " + self.target.name
+
+    class GetLocalAddr(TACInstr):
+        def __init__(self, dst: Temp, src: Temp) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [src], None)
+            self.dst = dst
+            self.src = src
+
+        def __str__(self) -> str:
+            return "add " + Riscv.FMT3.format(
+                str(self.dsts[0]), str(Riscv.SP), str(self.srcs[0])
+            )
 
     class SPAdd(NativeInstr):
         def __init__(self, offset: int) -> None:
