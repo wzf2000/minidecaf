@@ -79,6 +79,9 @@ class Visitor(Protocol[T, U]):  # type: ignore
     def visitCondExpr(self, that: ConditionExpression, ctx: T) -> Optional[U]:
         return self.visitOther(that, ctx)
 
+    def visitReference(self, that: Reference, ctx: T) -> Optional[U]:
+        return self.visitOther(that, ctx)
+
     def visitIdentifier(self, that: Identifier, ctx: T) -> Optional[U]:
         return self.visitOther(that, ctx)
 

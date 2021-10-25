@@ -11,7 +11,7 @@ from typing import Any, Generic, Optional, TypeVar, Union
 from frontend.type import INT, DecafType
 from utils import T, U
 
-from .node import NULL, BinaryOp, Node, UnaryOp
+from .node import NULL, BinaryOp, Node, NullType, UnaryOp
 from .visitor import Visitor, accept
 
 _T = TypeVar("_T", bound=Node)
@@ -182,7 +182,7 @@ class For(Statement):
     AST node of for statement.
     """
 
-    def __init__(self, init: Union[Expression, Declaration], cond: Expression, update: Expression, body: Statement) -> None:
+    def __init__(self, init: Union[Expression, Declaration, NullType], cond: Union[Expression, NullType], update: Union[Expression, NullType], body: Statement) -> None:
         super().__init__("for")
         self.init = init
         self.cond = cond
@@ -305,17 +305,20 @@ class Declaration(Node):
         var_t: TypeLiteral,
         ident: Identifier,
         init_expr: Optional[Expression] = None,
+        array_size: list[IntLiteral] = None,
     ) -> None:
         super().__init__("declaration")
         self.var_t = var_t
         self.ident = ident
         self.init_expr = init_expr or NULL
+        self.array_size: list[IntLiteral] = array_size or []
+        self.array_size: list[int] = [x.value for x in self.array_size]
 
     def __getitem__(self, key: int) -> Node:
-        return (self.var_t, self.ident, self.init_expr)[key]
+        return (self.var_t, self.ident, self.init_expr, self.array_size)[key]
 
     def __len__(self) -> int:
-        return 3
+        return 4
 
     def accept(self, v: Visitor[T, U], ctx: T):
         return v.visitDeclaration(self, ctx)
@@ -419,7 +422,7 @@ class Assignment(Binary):
     It's actually a kind of binary expression, but it'll make things easier if we use another accept method to handle it.
     """
 
-    def __init__(self, lhs: Identifier, rhs: Expression) -> None:
+    def __init__(self, lhs: Reference, rhs: Expression) -> None:
         super().__init__(BinaryOp.Assign, lhs, rhs)
 
     def accept(self, v: Visitor[T, U], ctx: T):
@@ -456,6 +459,32 @@ class ConditionExpression(Expression):
             self.then,
             self.otherwise,
         )
+
+
+class Reference(Expression):
+    """
+    AST node of Reference "expression".
+    """
+
+    def __init__(self, base: Union[Reference, Identifier], index: Optional[Expression] = None) -> None:
+        super().__init__("reference")
+        self.base = base
+        self.index = index or NULL
+
+    def __getitem__(self, key: int) -> Node:
+        raise [self.base][key] if self.index == NULL else [self.base, self.index][key]
+
+    def __len__(self) -> int:
+        return 1 + (self.index != NULL)
+
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitReference(self, ctx)
+
+    def __str__(self) -> str:
+        return f"{str(self.base)}[{str(self.index)}]" if self.index != NULL else f"Reference({str(self.base)})"
+
+    def is_leaf(self):
+        return True
 
 
 class Identifier(Expression):
