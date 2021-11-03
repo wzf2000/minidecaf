@@ -1,4 +1,3 @@
-from frontend.parser.ply_parser import unary
 import utils.riscv as riscv
 from frontend.ast import node
 from frontend.ast.tree import *

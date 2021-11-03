@@ -1,15 +1,18 @@
-# MiniDecaf Python 框架
+# Parser Stage
+
+此分支专用于 parser-stage。设立这个分支的目的在于排除 parser-stage 中用不到的干扰。可以使用 [test-parser-stage.sh](./test-parser-stage.sh) 来测试自己写的 parser 在 step 1-6 的测例下有没有不正常地报错退出。
+
+测试生成的 AST 的正确性可以采取 ~~肉眼瞪~~ 正确完成 stage2 后将 frontend/parser 替换为 parser-stage 中对应的文件夹并运行 minidecaf-tests 中的测试来实现。注意这也是最后 CI 中用于评判实现正确性的办法。
 
 ## 依赖
 
 - **Python >= 3.9**
-- requirements.txt 里的 python 库，包括 ply 和 argparse。
-- RISC-V 运行环境（参见实验指导书）
+- requirements.txt 里的 python 库 argparse。
 
 ## 运行
 
 ```
-python3 main.py --input <testcase.c> [--riscv/--tac/--parse]
+python3 main.py --input <testcase.c> --parse
 ```
 
 各参数意义如下：
@@ -17,8 +20,6 @@ python3 main.py --input <testcase.c> [--riscv/--tac/--parse]
 | 参数 | 含义 |
 | --- | --- |
 | `input` | 输入的 Minidecaf 代码位置 |
-| `riscv` | 输出 RISC-V 汇编 |
-| `tac` | 输出三地址码 |
 | `parse` | 输出抽象语法树 |
 
 ## 代码结构
@@ -30,15 +31,5 @@ minidecaf/
         lexer/      词法分析
         parser/     语法分析
         type/       类型定义
-        symbol/     符号定义
-        scope/      作用域定义
-        typecheck/  语义分析（符号表构建、类型检查）
-        tacgen/     中间代码 TAC 生成
-    backend/        后端
-        dataflow/   数据流分析
-        reg/        寄存器分配
-        riscv/      RISC-V 平台相关
     utils/          底层类
-        label/      标签定义
-        tac/        TAC 定义和基本类
 ```
