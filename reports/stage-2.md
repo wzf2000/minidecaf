@@ -54,7 +54,7 @@ expr.setattr("val", expr.then.getattr("val"))
 
 #### step6：`if` 语句和条件表达式
 
-1. `Python` 框架中，使用了产生式优先级的方式，即设置优先匹配 `if else` 而非 `if` 的方式，具体来说，在 `frontend/parser/ply_parser.py`，定义 `p_if_else()` 函数先于 `p_if()` 函数，使得解析时，优先考虑完整 `if else`。
+1. `Python` 框架中，设置了两种 `statement` 即 `statement_matched` 和 `statement_unmatched`，通过将不完整的 `if` 设置为只能从 `statement_unmatched` 解析以及 `if else` 中的第一个 `statement` 固定为 `statement_matched`，`if ... if ... else` 无法被解析为匹配远端（第一个 `if` 之后的 `statement` 要求必须内部是完整的 `if`）。
 
 2. 首先应该按照顺序访问 `cond`、`then`、`otherwise`（不带条件），之后的条件跳转修改为 `BNE` 语句，即条件正确时跳过，跳过部分只须添加将 `otherwise` 的结果赋值给 `then` 分支结果的 `Assign` 语句即可：
 
